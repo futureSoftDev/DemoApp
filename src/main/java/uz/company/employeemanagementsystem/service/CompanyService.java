@@ -3,7 +3,8 @@ package uz.company.employeemanagementsystem.service;
 import lombok.AccessLevel;
 import lombok.RequiredArgsConstructor;
 import lombok.experimental.FieldDefaults;
-import org.apache.coyote.BadRequestException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -11,10 +12,13 @@ import uz.company.employeemanagementsystem.domain.Company;
 import uz.company.employeemanagementsystem.dto.CompanyDTO;
 import uz.company.employeemanagementsystem.dto.CompanyDetailDTO;
 import uz.company.employeemanagementsystem.dto.CompanyListDTO;
+import uz.company.employeemanagementsystem.dto.ResultList;
+import uz.company.employeemanagementsystem.filter.BaseFilter;
+import uz.company.employeemanagementsystem.repository.BranchRepository;
 import uz.company.employeemanagementsystem.repository.CompanyRepository;
+import uz.company.employeemanagementsystem.repository.EmployeeRepository;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional
@@ -23,6 +27,8 @@ import java.util.stream.Collectors;
 public class CompanyService {
 
     CompanyRepository companyRepository;
+    private final BranchRepository branchRepository;
+    private final EmployeeRepository employeeRepository;
 
     public void validate(CompanyDTO companyDTO) {
         if (!StringUtils.hasText(companyDTO.getName())) {
@@ -49,7 +55,9 @@ public class CompanyService {
         company.setName(companyDTO.getName());
         company.setAddress(companyDTO.getAddress());
         company.setBrand(companyDTO.getBrand());
-        return companyRepository.save(company).getId();
+        companyRepository.save(company);
+        companyDTO.setId(company.getId());
+        return company.getId();
     }
 
     public Long update(Long id, CompanyDTO companyDTO) {
@@ -76,16 +84,27 @@ public class CompanyService {
     }
 
     @Transactional(readOnly = true)
-    public List<CompanyListDTO> getList() {
-        return companyRepository.findAll().stream().map(company -> {
-            CompanyListDTO companyListDTO = new CompanyListDTO();
-            companyListDTO.setId(company.getId());
-            companyListDTO.setName(company.getName());
-            companyListDTO.setAddress(company.getAddress());
-            companyListDTO.setBrand(company.getBrand());
-            return companyListDTO;
-        }).collect(Collectors.toList());
+    public Page<CompanyListDTO> getList(BaseFilter filter) {
+        ResultList<Company> resultList = companyRepository.getResultList(filter);
+        List<CompanyListDTO> result =
+                companyRepository.getResultList(filter).getList().stream().map(company -> {
+                    CompanyListDTO companyListDTO = new CompanyListDTO();
+                    companyListDTO.setId(company.getId());
+                    companyListDTO.setName(company.getName());
+                    companyListDTO.setAddress(company.getAddress());
+                    companyListDTO.setBrand(company.getBrand());
+                    return companyListDTO;
+                }).toList();
+        return new PageImpl<>(result, filter.getPageable(), resultList.getTotal());
     }
 
-
+    public void delete(Long id) {
+        if (branchRepository.existsByCompanyId(id)) {
+            throw new RuntimeException("Branch exists with this companyId");
+        }
+        if (employeeRepository.existsByCompanyId(id)) {
+            throw new RuntimeException("Employee exists with this companyId");
+        }
+        companyRepository.deleteById(id);
+    }
 }
