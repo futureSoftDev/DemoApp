@@ -114,6 +114,6 @@
                 </configuration>
             </plugin>
         </plugins>
+        <finalName>employee-management-system-app</finalName>
     </build>
-
 </project>
